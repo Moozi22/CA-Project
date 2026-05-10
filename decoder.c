@@ -12,13 +12,13 @@ static int signExtend6(int value) {
     return value;
 }
 
-Instruction decode(uint16_t raw) {
+Instruction decode(uint16_t instruction) {
     Instruction inst;
 
-    inst.opcode    = (raw >> 12) & 0b1111;
-    inst.r1        = (raw >> 6)  & 0b111111;
-    inst.r2        = raw         & 0b111111;
-    inst.immediate = raw         & 0b111111;
+    inst.opcode    = (instruction >> 12) & 0b1111;
+    inst.r1        = (instruction >> 6)  & 0b111111;
+    inst.r2        = instruction         & 0b111111;
+    inst.immediate = instruction         & 0b111111;
 
     if (isRFormat(inst.opcode)) {
         inst.type = 'R';
@@ -30,9 +30,9 @@ Instruction decode(uint16_t raw) {
             inst.immediate = signExtend6(inst.immediate);
     }
 
-    char *mnemonics[] = {"ADD","SUB","MUL","MOVI","BEQZ",
+    char *names[] = {"ADD","SUB","MUL","MOVI","BEQZ",
                          "ANDI","EOR","BR","SLC","SRC","LDR","STR"};
-    strcpy(inst.mnemonic, mnemonics[inst.opcode]);
+    strcpy(inst.mnemonic, names[inst.opcode]);
 
     return inst;
 }
