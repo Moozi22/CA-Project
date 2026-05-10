@@ -12,6 +12,6 @@ typedef struct {
     char mnemonic[8];
 } Instruction;
 
-Instruction decode(uint16_t raw);
+Instruction decode(uint16_t instruction);
 
 #endif
