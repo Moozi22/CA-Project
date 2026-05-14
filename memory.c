@@ -373,15 +373,17 @@ int loadProgram(const char *filename)
                 continue;
             }
             int r1 = parseRegister(arg1);
-            int imm = atoi(arg2); /* signed decimal */
+            int imm = atoi(arg2); /* signed decimal by default */
 
-            /* Validate 6-bit signed range: -32 to 31
-             * Exception: shift immediates are always positive (spec point 4) */
-            if (entry->opcode == 8 || entry->opcode == 9)
-            { /* SLC, SRC */
+            /* Most I-format instructions use a signed 6-bit immediate.
+             * Shifts use an unsigned 6-bit amount.
+             * LDR/STR use an unsigned 6-bit address field.            */
+            if (entry->opcode == 8 || entry->opcode == 9 ||
+                entry->opcode == 10 || entry->opcode == 11)
+            {
                 if (imm < 0 || imm > 63)
                 {
-                    printf("[Parser] WARNING: Shift immediate %d out of "
+                    printf("[Parser] WARNING: Immediate %d out of "
                            "unsigned 6-bit range [0,63].\n",
                            imm);
                 }
@@ -430,8 +432,8 @@ int loadProgram(const char *filename)
 
 /* --- printInstructionMemory ---
  *
- *  Prints every instruction memory slot that is non-zero,
- *  showing address, hex value, and binary breakdown.       */
+ *  Prints the full instruction memory image, including zero
+ *  entries, so the end-of-run dump matches the spec wording. */
 void printInstructionMemory()
 {
     printf("\n============================================================\n");
@@ -440,21 +442,11 @@ void printInstructionMemory()
     printf("%-8s %-8s %-20s\n", "Address", "Hex", "Binary (op|r1|r2/imm)");
     printf("------------------------------------------------------------\n");
 
-    int printed = 0;
     for (int i = 0; i < 1024; i++)
     {
-        if (instructionMemory[i] != 0)
-        {
-            printf("IM[%-4d]  0x%04X   ", i, instructionMemory[i]);
-            printBinary16(instructionMemory[i]);
-            printf("\n");
-            printed++;
-        }
-    }
-
-    if (printed == 0)
-    {
-        printf("  (all slots are 0)\n");
+        printf("IM[%-4d]  0x%04X   ", i, instructionMemory[i]);
+        printBinary16(instructionMemory[i]);
+        printf("\n");
     }
 
     printf("============================================================\n");
@@ -462,9 +454,8 @@ void printInstructionMemory()
 
 /* --- printDataMemory ---
  *
- *  Prints every data memory slot.
- *  Prints ALL 2048 slots as the spec requests the "full"
- *  content - non-zero slots are marked for easy reading.   */
+ *  Prints the full data memory image so the end-of-run dump
+ *  matches the spec wording.                              */
 void printDataMemory()
 {
     printf("\n============================================================\n");
@@ -473,26 +464,16 @@ void printDataMemory()
     printf("%-10s %-8s %-12s\n", "Address", "Decimal", "Binary");
     printf("------------------------------------------------------------\n");
 
-    int printed = 0;
     for (int i = 0; i < 2048; i++)
     {
-        if (dataMemory[i] != 0)
+        /* Print binary for 8-bit value */
+        int8_t val = dataMemory[i];
+        printf("DM[%-4d]   %-8d  ", i, val);
+        for (int b = 7; b >= 0; b--)
         {
-            /* Print binary for 8-bit value */
-            int8_t val = dataMemory[i];
-            printf("DM[%-4d]   %-8d  ", i, val);
-            for (int b = 7; b >= 0; b--)
-            {
-                printf("%d", (val >> b) & 1);
-            }
-            printf("\n");
-            printed++;
+            printf("%d", (val >> b) & 1);
         }
-    }
-
-    if (printed == 0)
-    {
-        printf("  (all slots are 0)\n");
+        printf("\n");
     }
 
     printf("============================================================\n");

@@ -5,15 +5,20 @@
 IF_ID_Register IF_ID;
 ID_EX_Register ID_EX;
 
-int clockCycle            = 1;
-int totalInstructions     = 0;
+int clockCycle = 1;
+int totalInstructions = 0;
 int completedInstructions = 0;
 
-static int8_t  forwardValue = 0;
-static int     forwardReg   = -1;
-static int     forwardValid = 0;
-static int     branchTaken  = 0;
-static int     fetchedCount = 0;
+static int8_t forwardValue = 0;
+static int forwardReg = -1;
+static int forwardValid = 0;
+static int branchTaken = 0;
+static int fetchedCount = 0;
+static Instruction lastExecutedInstruction;
+static int8_t lastExecutedVal1 = 0;
+static int8_t lastExecutedVal2 = 0;
+static int lastExecutedValid = 0;
+static uint16_t lastExecutedPC = 0;
 
 static void printBin16(uint16_t val)
 {
@@ -21,16 +26,41 @@ static void printBin16(uint16_t val)
         printf("%d", (val >> b) & 1);
 }
 
+static void printInstructionSummary(const char *stageName,
+                                    int valid,
+                                    const Instruction *inst,
+                                    uint16_t pc,
+                                    int8_t val1,
+                                    int8_t val2)
+{
+    if (!valid || inst == NULL)
+    {
+        printf("  [%s] bubble\n", stageName);
+        return;
+    }
+
+    printf("  [%s] PC=%u %s", stageName, pc, inst->mnemonic);
+    if (inst->type == 'R')
+        printf(" R%d R%d", inst->r1, inst->r2);
+    else
+        printf(" R%d %d", inst->r1, inst->immediate);
+
+    printf(" | entered: val1=%d, val2=%d\n", val1, val2);
+}
+
 void initPipeline(int numInstructions)
 {
-    totalInstructions     = numInstructions;
+    totalInstructions = numInstructions;
     completedInstructions = 0;
-    fetchedCount          = 0;
-    clockCycle            = 1;
-    forwardValid          = 0;
-    forwardReg            = -1;
-    forwardValue          = 0;
-    branchTaken           = 0;
+    fetchedCount = 0;
+    clockCycle = 1;
+    forwardValid = 0;
+    forwardReg = -1;
+    forwardValue = 0;
+    branchTaken = 0;
+    lastExecutedValid = 0;
+    lastExecutedPC = 0;
+    memset(&lastExecutedInstruction, 0, sizeof(lastExecutedInstruction));
 
     memset(&IF_ID, 0, sizeof(IF_ID));
     memset(&ID_EX, 0, sizeof(ID_EX));
@@ -43,22 +73,23 @@ void initPipeline(int numInstructions)
 
 void stageFetch(void)
 {
-    if (fetchedCount >= totalInstructions) {
+    if (fetchedCount >= totalInstructions)
+    {
         IF_ID.valid = 0;
         printf("  [IF] No instruction to fetch (all %d fetched).\n", totalInstructions);
         return;
     }
 
     uint16_t fetchedInstruction = readInstruction(PC);
-    uint16_t fetchedPC          = PC;
+    uint16_t fetchedPC = PC;
 
     printf("  [IF] Fetching instruction at PC=%u -> 0b", fetchedPC);
     printBin16(fetchedInstruction);
     printf(" (0x%04X)\n", fetchedInstruction);
 
     IF_ID.instruction = fetchedInstruction;
-    IF_ID.pc          = fetchedPC;
-    IF_ID.valid       = 1;
+    IF_ID.pc = fetchedPC;
+    IF_ID.valid = 1;
 
     PC++;
     fetchedCount++;
@@ -68,7 +99,8 @@ void stageFetch(void)
 
 void stageDecode(void)
 {
-    if (!IF_ID.valid) {
+    if (!IF_ID.valid)
+    {
         ID_EX.valid = 0;
         printf("  [ID] No instruction in latch (bubble).\n");
         return;
@@ -81,21 +113,27 @@ void stageDecode(void)
     int8_t val1 = getRegister((uint8_t)decoded.r1);
     int8_t val2 = 0;
 
-    if (decoded.type == 'R') {
+    if (decoded.type == 'R')
+    {
         val2 = getRegister((uint8_t)decoded.r2);
         printf(" R%d R%d  =>  val1=%d, val2=%d\n", decoded.r1, decoded.r2, val1, val2);
-    } else {
+    }
+    else
+    {
         val2 = (int8_t)decoded.immediate;
         printf(" R%d %d  =>  val1=%d, imm=%d\n", decoded.r1, decoded.immediate, val1, val2);
     }
 
-    if (forwardValid) {
-        if (decoded.r1 == forwardReg) {
+    if (forwardValid)
+    {
+        if (decoded.r1 == forwardReg)
+        {
             printf("  [ID] FORWARD: R%d val1 updated from %d -> %d (forwarded from EX)\n",
                    forwardReg, val1, forwardValue);
             val1 = forwardValue;
         }
-        if (decoded.type == 'R' && decoded.r2 == forwardReg) {
+        if (decoded.type == 'R' && decoded.r2 == forwardReg)
+        {
             printf("  [ID] FORWARD: R%d val2 updated from %d -> %d (forwarded from EX)\n",
                    forwardReg, val2, forwardValue);
             val2 = forwardValue;
@@ -103,26 +141,34 @@ void stageDecode(void)
     }
 
     ID_EX.decoded = decoded;
-    ID_EX.val1    = val1;
-    ID_EX.val2    = val2;
-    ID_EX.pc      = IF_ID.pc;
-    ID_EX.valid   = 1;
+    ID_EX.val1 = val1;
+    ID_EX.val2 = val2;
+    ID_EX.pc = IF_ID.pc;
+    ID_EX.valid = 1;
 }
 
 void stageExecute(void)
 {
+    lastExecutedValid = 0;
     forwardValid = 0;
-    forwardReg   = -1;
+    forwardReg = -1;
 
-    if (!ID_EX.valid) {
+    if (!ID_EX.valid)
+    {
         printf("  [EX] No instruction to execute (bubble).\n");
         return;
     }
 
     Instruction inst = ID_EX.decoded;
-    int8_t   val1    = ID_EX.val1;
-    int8_t   val2    = ID_EX.val2;
-    uint16_t instPC  = ID_EX.pc;
+    int8_t val1 = ID_EX.val1;
+    int8_t val2 = ID_EX.val2;
+    uint16_t instPC = ID_EX.pc;
+
+    lastExecutedInstruction = inst;
+    lastExecutedPC = instPC;
+    lastExecutedValid = 1;
+    lastExecutedVal1 = val1;
+    lastExecutedVal2 = val2;
 
     printf("  [EX] Executing: %s", inst.mnemonic);
     if (inst.type == 'R')
@@ -130,123 +176,198 @@ void stageExecute(void)
     else
         printf(" R%d %d   (val1=%d, imm=%d)\n", inst.r1, inst.immediate, val1, val2);
 
-    switch (inst.opcode) {
-        case 0: {
-            int8_t result = execute(0, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 1: {
-            int8_t result = execute(1, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 2: {
-            int8_t result = execute(2, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 3: {
-            setRegister((uint8_t)inst.r1, val2, "EX");
-            forwardValue = val2; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 4: {
-            printf("  [EX] BEQZ: checking R%d == 0? val1=%d\n", inst.r1, val1);
-            if (val1 == 0) {
-                uint16_t target = calculateBranch(instPC, (int8_t)inst.immediate);
-                printf("  [EX] BEQZ TAKEN: PC set to %u (was %u+1+%d)\n",
-                       target, instPC, inst.immediate);
-                PC = target;
-                flushPipeline();
-            } else {
-                printf("  [EX] BEQZ NOT TAKEN: continuing sequentially.\n");
-            }
-            break;
-        }
-        case 5: {
-            int8_t result = execute(5, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 6: {
-            int8_t result = execute(6, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 7: {
-            uint8_t  highByte = (uint8_t)val1;
-            uint8_t  lowByte  = (uint8_t)val2;
-            uint16_t target   = ((uint16_t)highByte << 8) | (uint16_t)lowByte;
-            printf("  [EX] BR: PC set to %u (R%d=0x%02X || R%d=0x%02X)\n",
-                   target, inst.r1, highByte, inst.r2, lowByte);
+    switch (inst.opcode)
+    {
+    case 0:
+    {
+        int8_t result = execute(0, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 1:
+    {
+        int8_t result = execute(1, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 2:
+    {
+        int8_t result = execute(2, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 3:
+    {
+        setRegister((uint8_t)inst.r1, val2, "EX");
+        forwardValue = val2;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 4:
+    {
+        printf("  [EX] BEQZ: checking R%d == 0? val1=%d\n", inst.r1, val1);
+        if (val1 == 0)
+        {
+            uint16_t target = calculateBranch(instPC, (int8_t)inst.immediate);
+            printf("  [EX] BEQZ TAKEN: PC set to %u (was %u+1+%d)\n",
+                   target, instPC, inst.immediate);
             PC = target;
             flushPipeline();
-            break;
         }
-        case 8: {
-            int8_t result = execute(8, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
+        else
+        {
+            printf("  [EX] BEQZ NOT TAKEN: continuing sequentially.\n");
         }
-        case 9: {
-            int8_t result = execute(9, val1, val2);
-            setRegister((uint8_t)inst.r1, result, "EX");
-            forwardValue = result; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 10: {
-            uint16_t addr   = (uint16_t)(uint8_t)val2;
-            int8_t   loaded = readData(addr);
-            printf("  [EX] LDR: R%d = MEM[%u] = %d\n", inst.r1, addr, loaded);
-            setRegister((uint8_t)inst.r1, loaded, "EX");
-            forwardValue = loaded; forwardReg = inst.r1; forwardValid = 1;
-            break;
-        }
-        case 11: {
-            uint16_t addr = (uint16_t)(uint8_t)val2;
-            printf("  [EX] STR: MEM[%u] = R%d = %d\n", addr, inst.r1, val1);
-            writeData(addr, val1);
-            break;
-        }
-        default:
-            printf("  [EX] ERROR: Unknown opcode %d\n", inst.opcode);
-            break;
+        break;
+    }
+    case 5:
+    {
+        int8_t result = execute(5, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 6:
+    {
+        int8_t result = execute(6, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 7:
+    {
+        uint8_t highByte = (uint8_t)val1;
+        uint8_t lowByte = (uint8_t)val2;
+        uint16_t target = ((uint16_t)highByte << 8) | (uint16_t)lowByte;
+        printf("  [EX] BR: PC set to %u (R%d=0x%02X || R%d=0x%02X)\n",
+               target, inst.r1, highByte, inst.r2, lowByte);
+        PC = target;
+        flushPipeline();
+        break;
+    }
+    case 8:
+    {
+        int8_t result = execute(8, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 9:
+    {
+        int8_t result = execute(9, val1, val2);
+        setRegister((uint8_t)inst.r1, result, "EX");
+        forwardValue = result;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 10:
+    {
+        uint16_t addr = (uint16_t)(uint8_t)val2;
+        int8_t loaded = readData(addr);
+        printf("  [EX] LDR: R%d = MEM[%u] = %d\n", inst.r1, addr, loaded);
+        setRegister((uint8_t)inst.r1, loaded, "EX");
+        forwardValue = loaded;
+        forwardReg = inst.r1;
+        forwardValid = 1;
+        break;
+    }
+    case 11:
+    {
+        uint16_t addr = (uint16_t)(uint8_t)val2;
+        printf("  [EX] STR: MEM[%u] = R%d = %d\n", addr, inst.r1, val1);
+        writeData(addr, val1);
+        break;
+    }
+    default:
+        printf("  [EX] ERROR: Unknown opcode %d\n", inst.opcode);
+        break;
     }
 
     completedInstructions++;
 }
 
-int detectHazard(void)
+int detectHazards(void)
 {
     if (!forwardValid || !IF_ID.valid)
         return 0;
 
     Instruction next = decode(IF_ID.instruction);
+    int hazard = 0;
 
     if (next.r1 == forwardReg)
-        return 1;
+        hazard = 1;
     if (next.type == 'R' && next.r2 == forwardReg)
-        return 1;
+        hazard = 1;
 
-    return 0;
+    if (hazard)
+    {
+        printf("  [HZ] RAW dependency on R%d detected; forwarding %d into ID stage.\n",
+               forwardReg, forwardValue);
+    }
+
+    return hazard;
+}
+
+int detectHazard(void)
+{
+    return detectHazards();
 }
 
 void flushPipeline(void)
 {
     printf("  [EX] FLUSH: Dropping instructions in IF and ID stages.\n");
-    IF_ID.valid  = 0;
-    ID_EX.valid  = 0;
+    IF_ID.valid = 0;
+    ID_EX.valid = 0;
+    IF_ID.instruction = 0;
+    IF_ID.pc = 0;
+    memset(&ID_EX.decoded, 0, sizeof(ID_EX.decoded));
+    ID_EX.val1 = 0;
+    ID_EX.val2 = 0;
+    ID_EX.pc = 0;
     fetchedCount = PC;
     forwardValid = 0;
-    forwardReg   = -1;
-    branchTaken  = 1;
+    forwardReg = -1;
+    branchTaken = 1;
+}
+
+void logState(void)
+{
+    printf("  [LOG] Cycle %d pipeline snapshot\n", clockCycle);
+    printInstructionSummary("EX", lastExecutedValid, &lastExecutedInstruction,
+                            lastExecutedPC, lastExecutedVal1, lastExecutedVal2);
+    printInstructionSummary("ID", ID_EX.valid, &ID_EX.decoded, ID_EX.pc,
+                            ID_EX.val1, ID_EX.val2);
+    if (IF_ID.valid)
+    {
+        Instruction next = decode(IF_ID.instruction);
+        printInstructionSummary("IF", 1, &next, IF_ID.pc, 0, 0);
+    }
+    else
+    {
+        printInstructionSummary("IF", 0, NULL, 0, 0, 0);
+    }
+
+    if (forwardValid)
+    {
+        printf("  [LOG] Forward path: R%d <- %d\n", forwardReg, forwardValue);
+    }
 }
 
 void runCycle(void)
@@ -261,14 +382,19 @@ void runCycle(void)
 
     stageExecute();
 
-    if (branchTaken) {
+    if (branchTaken)
+    {
         printf("  [ID] Cancelled — branch taken this cycle.\n");
         printf("  [IF] Cancelled — branch taken this cycle.\n");
-    } else {
+    }
+    else
+    {
         IF_ID = saved_IF_ID;
         stageDecode();
         stageFetch();
     }
+
+    logState();
 
     clockCycle++;
 }
@@ -280,10 +406,11 @@ void runPipeline(void)
     printf("║  PIPELINE SIMULATION START                           ║\n");
     printf("╚══════════════════════════════════════════════════════╝\n");
 
-    while (1) {
+    while (1)
+    {
         runCycle();
 
-        int fetchDone     = (fetchedCount >= totalInstructions);
+        int fetchDone = (fetchedCount >= totalInstructions);
         int pipelineEmpty = (!IF_ID.valid && !ID_EX.valid);
 
         if (fetchDone && pipelineEmpty)
