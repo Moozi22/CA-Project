@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSEN601 Package 3 - CPU Simulator GUI</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Courier New', monospace;
+    background: #0a0e1a;
+    color: #c8d8f0;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .header {
+    background: #0d1225;
+    border-bottom: 1px solid #1e3a5f;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .header-icon {
+    width: 40px; height: 40px;
+    background: #1a3a6e;
+    border: 1px solid #2a5a9e;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .header-text h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #7eb8f7;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-text p {
+    font-size: 11px;
+    color: #4a7aaa;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  .upload-zone {
+    border: 1.5px dashed #1e3a5f;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    background: #0d1225;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 32px;
+  }
+
+  .upload-zone:hover { border-color: #3a6aae; background: #0f1830; }
+  .upload-zone.dragover { border-color: #5a9aee; background: #101c35; }
+
+  .upload-zone h2 {
+    font-size: 14px;
+    color: #4a8ade;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .upload-zone p { font-size: 12px; color: #3a5a7a; margin-bottom: 20px; }
+
+  .upload-btn {
+    background: #1a3a6e;
+    border: 1px solid #2a5aae;
+    color: #7eb8f7;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: background 0.2s;
+  }
+
+  .upload-btn:hover { background: #234a8e; }
+
+  #file-input { display: none; }
+
+  .dashboard { display: none; }
+  .dashboard.visible { display: block; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: #0d1225;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-card .label {
+    font-size: 10px;
+    color: #3a6a9a;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .stat-card .value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #5aaef7;
+  }
+
+  .stat-card .value.green { color: #4acea0; }
+  .stat-card .value.amber { color: #f7c86a; }
+  .stat-card .value.red   { color: #f77a7a; }
+
+  .section-title {
+    font-size: 10px;
+    color: #3a6a9a;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e3a5f;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .panel {
+    background: #0d1225;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    background: #0a0e1a;
+    border-bottom: 1px solid #1e3a5f;
+    font-size: 10px;
+    color: #3a7aba;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .panel-body { padding: 16px; }
+
+  .cycles-container {
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e3a5f #0a0e1a;
+  }
+
+  .cycle-block {
+    margin-bottom: 16px;
+    border: 1px solid #1a2e4a;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .cycle-header {
+    background: #111d35;
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #5aaef7;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .cycle-header:hover { background: #152240; }
+
+  .cycle-num {
+    background: #1a3a6e;
+    border: 1px solid #2a5aae;
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-size: 10px;
+    color: #7eb8f7;
+    font-weight: 700;
+  }
+
+  .cycle-stages {
+    padding: 10px 14px;
+    display: none;
+  }
+
+  .cycle-stages.open { display: block; }
+
+  .stage-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+
+  .stage-badge {
+    min-width: 32px;
+    text-align: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+
+  .badge-if  { background: #1a3a6e; color: #7eb8f7; border: 1px solid #2a5aae; }
+  .badge-id  { background: #1a4a3e; color: #4acea0; border: 1px solid #2a7a6a; }
+  .badge-ex  { background: #3a2a1a; color: #f7a84a; border: 1px solid #6a4a2a; }
+  .badge-reg { background: #2a1a3a; color: #c07aff; border: 1px solid #5a3a7a; }
+  .badge-mem { background: #3a1a1a; color: #f77a7a; border: 1px solid #7a3a3a; }
+  .badge-fwd { background: #1a3a1a; color: #6aee8a; border: 1px solid #3a7a3a; }
+  .badge-flush { background: #4a1a1a; color: #ff6a6a; border: 1px solid #8a3a3a; }
+
+  .stage-text { color: #8aaac8; line-height: 1.5; }
+  .stage-text .highlight { color: #f7c86a; }
+  .stage-text .reg-update { color: #c07aff; }
+  .stage-text .mem-update { color: #f77a7a; }
+  .stage-text .branch { color: #ff8a6a; }
+  .stage-text .forward { color: #6aee8a; }
+
+  .reg-table-wrap {
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e3a5f #0a0e1a;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  th {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #3a7aba;
+    padding: 6px 10px;
+    border-bottom: 1px solid #1e3a5f;
+    text-align: left;
+  }
+
+  td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #111d35;
+    color: #8aaac8;
+    font-family: 'Courier New', monospace;
+  }
+
+  tr:hover td { background: #0f1830; }
+
+  td.nonzero { color: #f7c86a; }
+  td.reg-name { color: #5aaef7; }
+
+  .sreg-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .flag-chip {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid;
+  }
+
+  .flag-chip.set   { background: #1a4a3e; color: #4acea0; border-color: #2a7a6a; }
+  .flag-chip.unset { background: #111d2a; color: #3a5a7a; border-color: #1a3a5a; }
+
+  .mem-table-wrap {
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e3a5f #0a0e1a;
+  }
+
+  .inst-mem-wrap {
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e3a5f #0a0e1a;
+  }
+
+  .binary-cell {
+    font-size: 10px;
+    color: #3a7aba;
+    letter-spacing: 1px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: #2a4a6a;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .pipeline-viz {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .pipe-stage {
+    flex: 1;
+    padding: 16px 12px;
+    text-align: center;
+    background: #0d1225;
+    border-right: 1px solid #1e3a5f;
+    position: relative;
+  }
+
+  .pipe-stage:last-child { border-right: none; }
+
+  .pipe-stage.active { background: #111d35; }
+
+  .pipe-stage-name {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .pipe-stage-name.if  { color: #5aaef7; }
+  .pipe-stage-name.id  { color: #4acea0; }
+  .pipe-stage-name.ex  { color: #f7a84a; }
+
+  .pipe-stage-instr {
+    font-size: 12px;
+    color: #c8d8f0;
+    min-height: 20px;
+  }
+
+  .pipe-arrow {
+    display: flex;
+    align-items: center;
+    color: #1e3a5f;
+    font-size: 18px;
+    padding: 0 4px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .ctrl-btn {
+    background: #1a3a6e;
+    border: 1px solid #2a5aae;
+    color: #7eb8f7;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: background 0.15s;
+  }
+
+  .ctrl-btn:hover { background: #234a8e; }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .cycle-counter {
+    font-size: 12px;
+    color: #4a7aaa;
+    letter-spacing: 1px;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: #1e3a5f;
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #3a7aee;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">⚙</div>
+  <div class="header-text">
+    <h1>CSEN601 &mdash; Package 3</h1>
+    <p>Harvard Architecture · 3-Stage Pipeline Simulator · IF → ID → EX</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="upload-zone" id="drop-zone">
+    <h2>Load Simulator Output</h2>
+    <p>Run: <strong style="color:#5aaef7">./simulator program.txt > output.txt</strong> &nbsp;then load the file below</p>
+    <input type="file" id="file-input" accept=".txt">
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+      📂 &nbsp;Select output.txt
+    </button>
+    <p style="margin-top:14px; font-size:11px; color:#2a4a6a">or drag and drop the file here</p>
+  </div>
+
+  <div class="dashboard" id="dashboard">
+
+    <div class="stats-row" id="stats-row"></div>
+
+    <div class="section-title">pipeline stages — last cycle</div>
+    <div class="pipeline-viz" id="pipeline-viz">
+      <div class="pipe-stage" id="ps-if">
+        <div class="pipe-stage-name if">IF</div>
+        <div class="pipe-stage-instr" id="psi-if">—</div>
+      </div>
+      <div class="pipe-stage" id="ps-id">
+        <div class="pipe-stage-name id">ID</div>
+        <div class="pipe-stage-instr" id="psi-id">—</div>
+      </div>
+      <div class="pipe-stage" id="ps-ex">
+        <div class="pipe-stage-name ex">EX</div>
+        <div class="pipe-stage-instr" id="psi-ex">—</div>
+      </div>
+    </div>
+
+    <div class="section-title">cycle-by-cycle execution</div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="btn-prev" onclick="stepCycle(-1)" disabled>◀ Prev</button>
+      <button class="ctrl-btn" id="btn-next" onclick="stepCycle(1)">Next ▶</button>
+      <button class="ctrl-btn" onclick="jumpTo(0)">⏮ First</button>
+      <button class="ctrl-btn" onclick="jumpTo(cycles.length - 1)">Last ⏭</button>
+      <span class="cycle-counter" id="cycle-counter">Cycle 1 / 1</span>
+    </div>
+
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+
+    <div class="panel" style="margin-bottom:24px">
+      <div class="panel-header">execution log</div>
+      <div class="panel-body cycles-container" id="cycle-detail"></div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="section-title">register file</div>
+        <div class="panel">
+          <div class="panel-header">general purpose registers — R0 to R63</div>
+          <div class="panel-body" style="padding:0">
+            <div class="reg-table-wrap">
+              <table id="reg-table">
+                <thead><tr><th>Reg</th><th>Decimal</th><th>Hex</th><th>Binary</th></tr></thead>
+                <tbody id="reg-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-header">status register (SREG)</div>
+          <div class="panel-body">
+            <div class="sreg-row" id="sreg-flags"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-title">memory</div>
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-header">instruction memory</div>
+          <div class="panel-body" style="padding:0">
+            <div class="inst-mem-wrap">
+              <table id="imem-table">
+                <thead><tr><th>Addr</th><th>Hex</th><th>Binary</th></tr></thead>
+                <tbody id="imem-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">data memory</div>
+          <div class="panel-body" style="padding:0">
+            <div class="mem-table-wrap">
+              <table id="dmem-table">
+                <thead><tr><th>Addr</th><th>Decimal</th><th>Binary</th></tr></thead>
+                <tbody id="dmem-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let cycles = [];
+let currentCycle = 0;
+let parsedData = {};
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) { parseAndRender(ev.target.result); };
+  reader.readAsText(file);
+});
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', function(e) {
+  e.preventDefault(); dropZone.classList.add('dragover');
+});
+dropZone.addEventListener('dragleave', function() {
+  dropZone.classList.remove('dragover');
+});
+dropZone.addEventListener('drop', function(e) {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) { parseAndRender(ev.target.result); };
+  reader.readAsText(file);
+});
+
+function parseAndRender(text) {
+  parsedData = parseOutput(text);
+  renderDashboard(parsedData);
+  document.getElementById('dashboard').classList.add('visible');
+  document.querySelector('.upload-zone').style.display = 'none';
+}
+
+function parseOutput(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  const data = {
+    cycles: [],
+    registers: [],
+    sreg: { C:0, V:0, N:0, S:0, Z:0 },
+    pc: 0,
+    imem: [],
+    dmem: [],
+    totalCycles: 0,
+    totalInstructions: 0,
+    numInstructions: 0
+  };
+
+  let currentCycleObj = null;
+  let inRegisters = false;
+  let inSREG = false;
+  let inIMem = false;
+  let inDMem = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    const cycleMatch = line.match(/CLOCK CYCLE\s+(\d+)/);
+    if (cycleMatch) {
+      if (currentCycleObj) data.cycles.push(currentCycleObj);
+      currentCycleObj = { num: parseInt(cycleMatch[1]), events: [] };
+      inRegisters = false; inSREG = false; inIMem = false; inDMem = false;
+      continue;
+    }
+
+    const completeMatch = line.match(/Total clock cycles:\s*(\d+)/);
+    if (completeMatch) { data.totalCycles = parseInt(completeMatch[1]); }
+
+    const instrMatch = line.match(/Instructions completed:\s*(\d+)/);
+    if (instrMatch) { data.totalInstructions = parseInt(instrMatch[1]); }
+
+    const loadedMatch = line.match(/(\d+) instruction\(s\) loaded/);
+    if (loadedMatch) { data.numInstructions = parseInt(loadedMatch[1]); }
+
+    if (line.includes('GENERAL-PURPOSE REGISTER FILE')) { inRegisters = true; continue; }
+    if (line.includes('STATUS REGISTER')) { inSREG = true; inRegisters = false; continue; }
+    if (line.includes('INSTRUCTION MEMORY DUMP')) { inIMem = true; inSREG = false; continue; }
+    if (line.includes('DATA MEMORY DUMP')) { inDMem = true; inIMem = false; continue; }
+
+    if (inRegisters) {
+      const regMatch = line.match(/^R(\d+)\s+(-?\d+)\s+(0x[0-9A-Fa-f]+)\s+([01]+)/);
+      if (regMatch) {
+        data.registers.push({
+          name: 'R' + regMatch[1],
+          num: parseInt(regMatch[1]),
+          dec: parseInt(regMatch[2]),
+          hex: regMatch[3],
+          bin: regMatch[4]
+        });
+      }
+    }
+
+    if (inSREG) {
+      const flagMatch = line.match(/([CVNSZ])\s+\(.*?\)\s+=\s+(\d)/);
+      if (flagMatch) data.sreg[flagMatch[1]] = parseInt(flagMatch[2]);
+      const pcMatch = line.match(/PC \(final\)\s*=\s*(\d+)/);
+      if (pcMatch) data.pc = parseInt(pcMatch[1]);
+    }
+
+    const pcFinalMatch = line.match(/PC \(final\)\s*=\s*(\d+)/);
+    if (pcFinalMatch) data.pc = parseInt(pcFinalMatch[1]);
+
+    if (inIMem) {
+      const imemMatch = line.match(/IM\[(\d+)\s*\]\s+(0x[0-9A-Fa-f]+)\s+([01 ]+)/);
+      if (imemMatch) {
+        data.imem.push({
+          addr: parseInt(imemMatch[1]),
+          hex: imemMatch[2],
+          bin: imemMatch[3].trim()
+        });
+      }
+    }
+
+    if (inDMem) {
+      const dmemMatch = line.match(/DM\[(\d+)\s*\]\s+(-?\d+)\s+([01]+)/);
+      if (dmemMatch) {
+        data.dmem.push({
+          addr: parseInt(dmemMatch[1]),
+          dec: parseInt(dmemMatch[2]),
+          bin: dmemMatch[3]
+        });
+      }
+    }
+
+    if (currentCycleObj && !inRegisters && !inSREG && !inIMem && !inDMem) {
+      const ifMatch  = line.match(/\[IF\]\s+(.+)/);
+      const idMatch  = line.match(/\[ID\]\s+(.+)/);
+      const exMatch  = line.match(/\[EX\]\s+(.+)/);
+      const fwdMatch = line.match(/FORWARD:\s+(.+)/);
+      const flushMatch = line.match(/FLUSH:\s+(.+)/);
+
+      if (ifMatch)    currentCycleObj.events.push({ type:'if',    text: ifMatch[1] });
+      else if (idMatch)    currentCycleObj.events.push({ type:'id',    text: idMatch[1] });
+      else if (exMatch)    currentCycleObj.events.push({ type:'ex',    text: exMatch[1] });
+      else if (fwdMatch)   currentCycleObj.events.push({ type:'fwd',   text: fwdMatch[1] });
+      else if (flushMatch) currentCycleObj.events.push({ type:'flush', text: flushMatch[1] });
+      else if (line.includes('Register Updated'))  currentCycleObj.events.push({ type:'reg', text: line });
+      else if (line.includes('Data Memory Updated')) currentCycleObj.events.push({ type:'mem', text: line });
+      else if (line.includes('SREG Updated'))      currentCycleObj.events.push({ type:'ex', text: line });
+      else if (line.includes('Cancelled'))         currentCycleObj.events.push({ type:'flush', text: line });
+    }
+  }
+
+  if (currentCycleObj) data.cycles.push(currentCycleObj);
+  return data;
+}
+
+function renderDashboard(data) {
+  cycles = data.cycles;
+  currentCycle = 0;
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="label">Total Cycles</div><div class="value">${data.totalCycles}</div></div>
+    <div class="stat-card"><div class="label">Instructions</div><div class="value green">${data.totalInstructions}</div></div>
+    <div class="stat-card"><div class="label">Loaded</div><div class="value amber">${data.numInstructions}</div></div>
+    <div class="stat-card"><div class="label">Final PC</div><div class="value red">${data.pc}</div></div>
+  `;
+
+  renderRegisters(data.registers);
+  renderSREG(data.sreg);
+  renderIMem(data.imem);
+  renderDMem(data.dmem);
+
+  jumpTo(0);
+}
+
+function jumpTo(idx) {
+  if (!cycles.length) return;
+  currentCycle = Math.max(0, Math.min(idx, cycles.length - 1));
+  renderCycleDetail(cycles[currentCycle]);
+  updatePipelineViz(cycles[currentCycle]);
+  updateControls();
+}
+
+function stepCycle(dir) { jumpTo(currentCycle + dir); }
+
+function updateControls() {
+  document.getElementById('btn-prev').disabled = currentCycle <= 0;
+  document.getElementById('btn-next').disabled = currentCycle >= cycles.length - 1;
+  document.getElementById('cycle-counter').textContent =
+    'Cycle ' + (currentCycle + 1) + ' / ' + cycles.length;
+  const pct = cycles.length > 1 ? (currentCycle / (cycles.length - 1)) * 100 : 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function getBadgeClass(type) {
+  const map = { if:'badge-if', id:'badge-id', ex:'badge-ex',
+                reg:'badge-reg', mem:'badge-mem', fwd:'badge-fwd', flush:'badge-flush' };
+  return map[type] || 'badge-if';
+}
+
+function getBadgeLabel(type) {
+  const map = { if:'IF', id:'ID', ex:'EX', reg:'REG', mem:'MEM', fwd:'FWD', flush:'FLUSH' };
+  return map[type] || type.toUpperCase();
+}
+
+function colorText(text, type) {
+  if (type === 'reg') return '<span class="reg-update">' + escHtml(text) + '</span>';
+  if (type === 'mem') return '<span class="mem-update">' + escHtml(text) + '</span>';
+  if (type === 'flush') return '<span class="branch">' + escHtml(text) + '</span>';
+  if (type === 'fwd') return '<span class="forward">' + escHtml(text) + '</span>';
+  let t = escHtml(text);
+  t = t.replace(/(TAKEN|FLUSH|CANCELLED)/g, '<span class="branch">$1</span>');
+  t = t.replace(/(NOT TAKEN)/g, '<span class="highlight">$1</span>');
+  t = t.replace(/(R\d+\s*=\s*[-\d]+)/g, '<span class="reg-update">$1</span>');
+  t = t.replace(/(MEM\[\d+\]\s*=\s*[-\d]+)/g, '<span class="mem-update">$1</span>');
+  return t;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderCycleDetail(cycle) {
+  if (!cycle) return;
+  let html = '<div style="margin-bottom:8px; font-size:10px; color:#3a6a9a; letter-spacing:2px">CLOCK CYCLE ' + cycle.num + '</div>';
+  for (const ev of cycle.events) {
+    html += `<div class="stage-row">
+      <span class="stage-badge ${getBadgeClass(ev.type)}">${getBadgeLabel(ev.type)}</span>
+      <span class="stage-text">${colorText(ev.text, ev.type)}</span>
+    </div>`;
+  }
+  if (!cycle.events.length) {
+    html += '<div style="color:#2a4a6a; font-size:11px">No events this cycle</div>';
+  }
+  document.getElementById('cycle-detail').innerHTML = html;
+}
+
+function updatePipelineViz(cycle) {
+  if (!cycle) return;
+  let ifText = '—', idText = '—', exText = '—';
+  for (const ev of cycle.events) {
+    if (ev.type === 'if' && ev.text.includes('Fetching')) {
+      const m = ev.text.match(/PC=(\d+)/);
+      ifText = m ? 'PC=' + m[1] : 'fetching';
+    }
+    if (ev.type === 'id' && ev.text.includes('Decoding')) {
+      const m = ev.text.match(/Decoding:\s+(\w+)/);
+      idText = m ? m[1] : 'decoding';
+    }
+    if (ev.type === 'ex' && ev.text.includes('Executing')) {
+      const m = ev.text.match(/Executing:\s+(\w+)/);
+      exText = m ? m[1] : 'executing';
+    }
+    if (ev.type === 'if' && ev.text.toLowerCase().includes('no instruction')) ifText = 'bubble';
+    if (ev.type === 'id' && ev.text.toLowerCase().includes('bubble')) idText = 'bubble';
+    if (ev.type === 'ex' && ev.text.toLowerCase().includes('bubble')) exText = 'bubble';
+    if (ev.type === 'flush') { ifText = 'flushed'; idText = 'flushed'; }
+  }
+  document.getElementById('psi-if').textContent = ifText;
+  document.getElementById('psi-id').textContent = idText;
+  document.getElementById('psi-ex').textContent = exText;
+}
+
+function renderRegisters(regs) {
+  const tbody = document.getElementById('reg-tbody');
+  if (!regs.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state">no data</td></tr>'; return; }
+  tbody.innerHTML = regs.map(r => `
+    <tr>
+      <td class="reg-name">${r.name}</td>
+      <td class="${r.dec !== 0 ? 'nonzero' : ''}">${r.dec}</td>
+      <td class="${r.dec !== 0 ? 'nonzero' : ''}">${r.hex}</td>
+      <td class="binary-cell">${r.bin}</td>
+    </tr>`).join('');
+}
+
+function renderSREG(sreg) {
+  const flags = ['C','V','N','S','Z'];
+  const names = { C:'Carry', V:'Overflow', N:'Negative', S:'Sign', Z:'Zero' };
+  document.getElementById('sreg-flags').innerHTML = flags.map(f =>
+    `<span class="flag-chip ${sreg[f] ? 'set' : 'unset'}">${f}=${sreg[f]} <span style="font-size:9px;opacity:0.7">${names[f]}</span></span>`
+  ).join('');
+}
+
+function renderIMem(imem) {
+  const tbody = document.getElementById('imem-tbody');
+  if (!imem.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">no data</td></tr>'; return; }
+  tbody.innerHTML = imem.map(m => `
+    <tr>
+      <td class="reg-name">IM[${m.addr}]</td>
+      <td class="nonzero">${m.hex}</td>
+      <td class="binary-cell">${m.bin}</td>
+    </tr>`).join('');
+}
+
+function renderDMem(dmem) {
+  const tbody = document.getElementById('dmem-tbody');
+  if (!dmem.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">(all slots are 0)</td></tr>'; return; }
+  tbody.innerHTML = dmem.map(m => `
+    <tr>
+      <td class="reg-name">DM[${m.addr}]</td>
+      <td class="nonzero">${m.dec}</td>
+      <td class="binary-cell">${m.bin}</td>
+    </tr>`).join('');
+}
+</script>
+</body>
+</html>
