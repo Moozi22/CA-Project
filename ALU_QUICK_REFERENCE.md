@@ -235,6 +235,43 @@ int8_t result = execute(5, (int8_t)0xF0, (int8_t)0xAA);
 - [x] Comprehensive testing (33 tests)
 - [x] Documentation
 
+---
+
+## Pipeline Hazard and Logger Notes
+
+This part is the pipeline-side support for your evaluation.
+
+### What It Does
+
+- Detects RAW data hazards using forwarding from EX to ID.
+- Flushes younger instructions when a branch is taken.
+- Logs the pipeline state every cycle so the execution can be explained step by step.
+
+### Main Functions
+
+- `detectHazards()` checks whether the next instruction needs a value that was just produced.
+- `flushPipeline()` clears IF and ID after a taken branch so wrong-path instructions do not execute.
+- `logState()` prints the EX, ID, and IF stage snapshot each cycle.
+- `runCycle()` coordinates execute, decode, fetch, and logging.
+- `runPipeline()` keeps running until the program is fully completed.
+
+### What It Affects
+
+- Prevents stale register values from being used by dependent instructions.
+- Prevents wrong-path instructions from updating registers or memory after a taken branch.
+- Makes the simulation traceable during evaluation because every cycle is printed.
+
+### Short Evaluation Summary
+
+You can say this in the evaluation:
+
+"My part handles pipeline hazards by forwarding results from EX to ID and flushing younger instructions on a taken branch, while the system logger prints a cycle-by-cycle snapshot of IF, ID, and EX so the execution can be traced and explained."
+
+### Related Test File
+
+- [test_pipeline_hazards.c](test_pipeline_hazards.c)
+- [PIPELINE_HAZARD_LOGGER_NOTES.md](PIPELINE_HAZARD_LOGGER_NOTES.md)
+
 **Status: READY FOR PIPELINE INTEGRATION ✅**
 
 ---
