@@ -18,14 +18,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/* =========================================================
- *  SECTION 1 - GLOBAL VARIABLES
- *
- *  These are the actual hardware being simulated.
- *  All other .c files access them through the extern
- *  declarations in registers.h.
- * ========================================================= */
-
 /* 64 General-Purpose Registers, each 8-bit signed.
  * Indexed directly: GPR[0] = R0, GPR[1] = R1, ..., GPR[63] = R63.
  * int8_t matches the spec's "char / int8_t" requirement exactly.  */
@@ -70,7 +62,8 @@ int8_t getRegister(uint8_t regNum)
     if (regNum > 63)
     {
         printf("[Registers] ERROR: getRegister - R%u is out of "
-               "bounds (max R63).\n", regNum);
+               "bounds (max R63).\n",
+               regNum);
         return 0;
     }
     return GPR[regNum];
@@ -94,7 +87,8 @@ void setRegister(uint8_t regNum, int8_t value, const char *stageName)
     if (regNum > 63)
     {
         printf("[Registers] ERROR: setRegister - R%u is out of "
-               "bounds (max R63).\n", regNum);
+               "bounds (max R63).\n",
+               regNum);
         return;
     }
 
@@ -148,11 +142,11 @@ void updateCarryFlag(int val1, int val2)
     /* Bit 8 == 1 means carry out of the 8-bit result */
     if ((result9bit & 0x100) == 0x100)
     {
-        SREG |= (1 << SREG_C_BIT);   /* Set C */
+        SREG |= (1 << SREG_C_BIT); /* Set C */
     }
     else
     {
-        SREG &= ~(1 << SREG_C_BIT);  /* Clear C */
+        SREG &= ~(1 << SREG_C_BIT); /* Clear C */
     }
 
     /* Always ensure bits [7:5] stay 0 (spec requirement) */
@@ -184,8 +178,8 @@ void updateOverflowFlag(int8_t val1, int8_t val2, int8_t result8,
     {
         /* ADD: overflow iff same-sign operands produce opposite-sign result */
         /* sign bits: negative = 1 (MSB set), positive = 0 */
-        int sign1   = (val1   >> 7) & 1;
-        int sign2   = (val2   >> 7) & 1;
+        int sign1 = (val1 >> 7) & 1;
+        int sign2 = (val2 >> 7) & 1;
         int signRes = (result8 >> 7) & 1;
 
         if (sign1 == sign2 && sign1 != signRes)
@@ -195,8 +189,8 @@ void updateOverflowFlag(int8_t val1, int8_t val2, int8_t result8,
     {
         /* SUB (val1 - val2): overflow iff signs differ AND result sign
          * equals the subtrahend (val2) sign                          */
-        int sign1   = (val1   >> 7) & 1;
-        int sign2   = (val2   >> 7) & 1;
+        int sign1 = (val1 >> 7) & 1;
+        int sign2 = (val2 >> 7) & 1;
         int signRes = (result8 >> 7) & 1;
 
         if (sign1 != sign2 && signRes == sign2)
@@ -238,7 +232,7 @@ void updateSignFlag(void)
 {
     int n = FLAG_N;
     int v = FLAG_V;
-    int s = n ^ v;   /* XOR */
+    int s = n ^ v; /* XOR */
 
     if (s)
         SREG |= (1 << SREG_S_BIT);

@@ -20,14 +20,6 @@
 #include <string.h>
 #include <stdint.h>
 
-/* =========================================================
- *  SECTION 1 - GLOBAL VARIABLES
- *
- *  These are the actual hardware being simulated.
- *  All other .c files access them through the extern
- *  declarations in memory.h.
- * ========================================================= */
-
 /* 1024 x 16-bit instruction memory */
 uint16_t instructionMemory[1024];
 

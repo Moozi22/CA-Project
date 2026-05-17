@@ -1,26 +1,24 @@
 #ifndef REGISTERS_H
 #define REGISTERS_H
 
-
-
 #include <stdint.h>
 
 extern int8_t GPR[64];
 
 extern uint8_t SREG;
 
-#define SREG_Z_BIT  0   
-#define SREG_S_BIT  1  
-#define SREG_N_BIT  2   
-#define SREG_V_BIT  3   
-#define SREG_C_BIT  4   
+#define SREG_Z_BIT 0
+#define SREG_S_BIT 1
+#define SREG_N_BIT 2
+#define SREG_V_BIT 3
+#define SREG_C_BIT 4
 
 /* Convenience macros to read individual flags from SREG */
-#define FLAG_Z  ((SREG >> SREG_Z_BIT) & 1)
-#define FLAG_S  ((SREG >> SREG_S_BIT) & 1)
-#define FLAG_N  ((SREG >> SREG_N_BIT) & 1)
-#define FLAG_V  ((SREG >> SREG_V_BIT) & 1)
-#define FLAG_C  ((SREG >> SREG_C_BIT) & 1)
+#define FLAG_Z ((SREG >> SREG_Z_BIT) & 1)
+#define FLAG_S ((SREG >> SREG_S_BIT) & 1)
+#define FLAG_N ((SREG >> SREG_N_BIT) & 1)
+#define FLAG_V ((SREG >> SREG_V_BIT) & 1)
+#define FLAG_C ((SREG >> SREG_C_BIT) & 1)
 
 /* ---------------------------------------------------------
  *  INITIALISATION

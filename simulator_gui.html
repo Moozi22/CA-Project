@@ -583,6 +583,13 @@ function parseOutput(text) {
     numInstructions: 0
   };
 
+  const runtimeState = {
+    registers: createInitialRegisters(),
+    sreg: { C:0, V:0, N:0, S:0, Z:0 },
+    pc: 0,
+    dmem: createInitialDataMemory()
+  };
+
   let currentCycleObj = null;
   let inRegisters = false;
   let inSREG = false;
@@ -594,7 +601,10 @@ function parseOutput(text) {
 
     const cycleMatch = line.match(/CLOCK CYCLE\s+(\d+)/);
     if (cycleMatch) {
-      if (currentCycleObj) data.cycles.push(currentCycleObj);
+      if (currentCycleObj) {
+        currentCycleObj.snapshot = cloneRuntimeState(runtimeState);
+        data.cycles.push(currentCycleObj);
+      }
       currentCycleObj = { num: parseInt(cycleMatch[1]), events: [] };
       inRegisters = false; inSREG = false; inIMem = false; inDMem = false;
       continue;
@@ -660,25 +670,50 @@ function parseOutput(text) {
     }
 
     if (currentCycleObj && !inRegisters && !inSREG && !inIMem && !inDMem) {
+      const pcMoveMatch = line.match(/PC (?:incremented to|set to)\s+(\d+)/);
+      if (pcMoveMatch) runtimeState.pc = parseInt(pcMoveMatch[1]);
+
+      const regUpdateMatch = line.match(/Register Updated:\s+R(\d+)\s*=\s*(-?\d+)/);
+      const memUpdateMatch = line.match(/Data Memory Updated:\s+MEM\[(\d+)\]\s*=\s*(-?\d+)/);
+      const sregUpdateMatch = line.includes('SREG Updated') ? line.match(/([CVNSZ])=(\d)/g) : null;
       const ifMatch  = line.match(/\[IF\]\s+(.+)/);
       const idMatch  = line.match(/\[ID\]\s+(.+)/);
       const exMatch  = line.match(/\[EX\]\s+(.+)/);
       const fwdMatch = line.match(/FORWARD:\s+(.+)/);
       const flushMatch = line.match(/FLUSH:\s+(.+)/);
 
-      if (ifMatch)    currentCycleObj.events.push({ type:'if',    text: ifMatch[1] });
+      if (regUpdateMatch) {
+        const regNum = parseInt(regUpdateMatch[1]);
+        const value = parseInt(regUpdateMatch[2]);
+        runtimeState.registers[regNum] = makeRegisterEntry(regNum, value);
+        currentCycleObj.events.push({ type:'reg', text: line });
+      }
+      else if (memUpdateMatch) {
+        const addr = parseInt(memUpdateMatch[1]);
+        const value = parseInt(memUpdateMatch[2]);
+        runtimeState.dmem[addr] = makeDataMemoryEntry(addr, value);
+        currentCycleObj.events.push({ type:'mem', text: line });
+      }
+      else if (sregUpdateMatch) {
+        for (const entry of sregUpdateMatch) {
+          const flagMatch = entry.match(/([CVNSZ])=(\d)/);
+          if (flagMatch) runtimeState.sreg[flagMatch[1]] = parseInt(flagMatch[2]);
+        }
+        currentCycleObj.events.push({ type:'ex', text: line });
+      }
+      else if (ifMatch)    currentCycleObj.events.push({ type:'if',    text: ifMatch[1] });
       else if (idMatch)    currentCycleObj.events.push({ type:'id',    text: idMatch[1] });
       else if (exMatch)    currentCycleObj.events.push({ type:'ex',    text: exMatch[1] });
       else if (fwdMatch)   currentCycleObj.events.push({ type:'fwd',   text: fwdMatch[1] });
       else if (flushMatch) currentCycleObj.events.push({ type:'flush', text: flushMatch[1] });
-      else if (line.includes('Register Updated'))  currentCycleObj.events.push({ type:'reg', text: line });
-      else if (line.includes('Data Memory Updated')) currentCycleObj.events.push({ type:'mem', text: line });
-      else if (line.includes('SREG Updated'))      currentCycleObj.events.push({ type:'ex', text: line });
       else if (line.includes('Cancelled'))         currentCycleObj.events.push({ type:'flush', text: line });
     }
   }
 
-  if (currentCycleObj) data.cycles.push(currentCycleObj);
+  if (currentCycleObj) {
+    currentCycleObj.snapshot = cloneRuntimeState(runtimeState);
+    data.cycles.push(currentCycleObj);
+  }
   return data;
 }
 
@@ -706,6 +741,7 @@ function jumpTo(idx) {
   currentCycle = Math.max(0, Math.min(idx, cycles.length - 1));
   renderCycleDetail(cycles[currentCycle]);
   updatePipelineViz(cycles[currentCycle]);
+  renderRuntimeState(cycles[currentCycle].snapshot || null, parsedData);
   updateControls();
 }
 
@@ -746,6 +782,65 @@ function colorText(text, type) {
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function createInitialRegisters() {
+  const registers = [];
+  for (let i = 0; i < 64; i++) {
+    registers.push(makeRegisterEntry(i, 0));
+  }
+  return registers;
+}
+
+function createInitialDataMemory() {
+  const dmem = [];
+  for (let i = 0; i < 2048; i++) {
+    dmem.push(makeDataMemoryEntry(i, 0));
+  }
+  return dmem;
+}
+
+function cloneRuntimeState(state) {
+  return {
+    registers: state.registers.map(entry => ({ ...entry })),
+    sreg: { ...state.sreg },
+    pc: state.pc,
+    dmem: state.dmem.map(entry => ({ ...entry }))
+  };
+}
+
+function makeRegisterEntry(num, value) {
+  return {
+    name: 'R' + num,
+    num,
+    dec: value,
+    hex: formatHex8(value),
+    bin: formatBin8(value)
+  };
+}
+
+function makeDataMemoryEntry(addr, value) {
+  return {
+    addr,
+    dec: value,
+    bin: formatBin8(value)
+  };
+}
+
+function formatHex8(value) {
+  return '0x' + (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+}
+
+function formatBin8(value) {
+  return (value & 0xFF).toString(2).padStart(8, '0');
+}
+
+function renderRuntimeState(snapshot, data) {
+  if (!snapshot) return;
+  renderRegisters(snapshot.registers);
+  renderSREG(snapshot.sreg);
+  renderIMem(data.imem);
+  renderDMem(snapshot.dmem);
 }
 
 function renderCycleDetail(cycle) {
