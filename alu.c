@@ -50,8 +50,17 @@ int8_t execute(int opcode, int8_t val1, int8_t val2)
     case 8: /* SLC: Shift Left Circular (rotate left) */
     {
         uint8_t val_unsigned = (uint8_t)val1;
-        uint8_t carry_bit = (val_unsigned >> 7) & 1;
-        result = (int8_t)((val_unsigned << 1) | carry_bit);
+        uint8_t rotate_count = ((uint8_t)val2) & 7;
+
+        if (rotate_count == 0)
+        {
+            result = val1;
+        }
+        else
+        {
+            result = (int8_t)((val_unsigned << rotate_count) |
+                              (val_unsigned >> (8 - rotate_count)));
+        }
         updateFlagsNZ(result);
         break;
     }
@@ -59,8 +68,17 @@ int8_t execute(int opcode, int8_t val1, int8_t val2)
     case 9: /* SRC: Shift Right Circular (rotate right) */
     {
         uint8_t val_unsigned = (uint8_t)val1;
-        uint8_t carry_bit = val_unsigned & 1;
-        result = (int8_t)((val_unsigned >> 1) | (carry_bit << 7));
+        uint8_t rotate_count = ((uint8_t)val2) & 7;
+
+        if (rotate_count == 0)
+        {
+            result = val1;
+        }
+        else
+        {
+            result = (int8_t)((val_unsigned >> rotate_count) |
+                              (val_unsigned << (8 - rotate_count)));
+        }
         updateFlagsNZ(result);
         break;
     }

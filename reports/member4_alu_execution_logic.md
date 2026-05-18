@@ -18,10 +18,12 @@ The ALU supports the instructions needed by Package 3:
 - `MUL` for multiplication.
 - `ANDI` for bitwise AND.
 - `EOR` for bitwise XOR.
-- `SLC` for shift left circular.
-- `SRC` for shift right circular.
+- `SLC` for shift left circular by one bit.
+- `SRC` for shift right circular by one bit.
 
 It returns the truncated 8-bit result and calls the correct register-flag update helper after the operation.
+
+For the circular shifts, the ALU implementation rotates the value by exactly one bit. The decoded instruction still carries its immediate field, but the EX-stage rotate operation itself is fixed at a single-bit circular shift in this project.
 
 ## Example
 Some clear examples are:

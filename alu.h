@@ -28,7 +28,7 @@
  *
  * @opcode   : Instruction opcode (0-11), determines operation
  * @val1     : First operand (8-bit signed) - typically from R1 or immediate
- * @val2     : Second operand (8-bit signed) - typically from R2
+ * @val2     : Second operand (8-bit signed) - typically from R2 or IMM
  *
  * Returns   : 8-bit signed result of the operation
  *
@@ -38,8 +38,8 @@
  *   2 (MUL)   : val1 * val2 (16-bit product truncated to 8-bit), updates N, Z flags
  *   5 (ANDI)  : val1 & val2 (bitwise AND), updates N, Z flags
  *   6 (EOR)   : val1 ^ val2 (bitwise XOR), updates N, Z flags
- *   8 (SLC)   : val1 << 1 with wrap-around (circular left shift), updates N, Z flags
- *   9 (SRC)   : val1 >> 1 with wrap-around (circular right shift), updates N, Z flags
+ *   8 (SLC)   : val1 rotated left by val2 bits (wrap-around), updates N, Z flags
+ *   9 (SRC)   : val1 rotated right by val2 bits (wrap-around), updates N, Z flags
  *
  * Other opcodes (3, 4, 7, 10, 11) are not ALU operations and return 0.
  */
