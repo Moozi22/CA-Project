@@ -1,13 +1,4 @@
-/* =========================================================
- *  test_pipeline_hazards.c  -  Pipeline hazard tests
- *
- *  Compile:
- *    gcc -std=c11 -Wall -Wextra -Werror -o test_pipeline_hazards.exe \
- *        test_pipeline_hazards.c alu.c decoder.c memory.c pipeline.c registers.c
- *
- *  Run:
- *    .\test_pipeline_hazards.exe
- * ========================================================= */
+
 
 #include "pipeline.h"
 

@@ -1,14 +1,4 @@
-/* =========================================================
- *  test_alu.c  -  Unit tests for ALU & Execution Logic
- *
- *  Compile:
- *    gcc -Wall -o test_alu test_alu.c alu.c registers.c -lm
- *  Run:
- *    ./test_alu
- *
- *  This test file independently exercises all ALU functions
- *  and verifies correct operation of all instructions.
- * ========================================================= */
+
 
 #include "alu.h"
 #include "registers.h"
@@ -24,7 +14,6 @@ int main(void)
     
     printf("Running comprehensive ALU tests...\n\n");
     
-    /* Run the full ALU test suite */
     int result = testALU();
     
     printf("\n========================================================\n");
