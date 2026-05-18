@@ -1,14 +1,4 @@
-/* =========================================================
- *  test_alu_comprehensive.c  -  Comprehensive ALU Testing
- *
- *  Based on CSEN601 Project - Package 3 Specification
- *  Tests Member 4: ALU & Execution Logic (EX Stage)
- *
- *  Compile:
- *    gcc -Wall -o test_alu_comprehensive test_alu_comprehensive.c alu.c registers.c -lm
- *  Run:
- *    ./test_alu_comprehensive
- * ========================================================= */
+
 
 #include "alu.h"
 #include "registers.h"
@@ -16,7 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-/* Test counters */
+
 static int total_tests = 0;
 static int passed_tests = 0;
 
@@ -35,16 +25,13 @@ static int passed_tests = 0;
         }                                          \
     } while (0)
 
-/* =========================================================
- *  SECTION 1: ARITHMETIC OPERATIONS (ADD, SUB, MUL)
- * ========================================================= */
+
 static void test_arithmetic_operations(void)
 {
     printf("\n====================================\n");
     printf("SECTION 1: ARITHMETIC OPERATIONS\n");
     printf("====================================\n");
 
-    /* -------- ADD (Opcode 0) -------- */
     printf("\n--- ADD (Opcode 0) ---\n");
 
     initRegisters();
@@ -71,7 +58,7 @@ static void test_arithmetic_operations(void)
     result = execute(0, 127, 127);
     TEST(result == -2, "ADD: 127 + 127 with overflow");
 
-    /* -------- SUB (Opcode 1) -------- */
+  
     printf("\n--- SUB (Opcode 1) ---\n");
 
     initRegisters();
@@ -94,7 +81,7 @@ static void test_arithmetic_operations(void)
     result = execute(1, 0, 0);
     TEST(result == 0 && ((SREG >> 0) & 1) == 1, "SUB: 0 - 0 sets Z flag");
 
-    /* -------- MUL (Opcode 2) -------- */
+  
     printf("\n--- MUL (Opcode 2) ---\n");
 
     initRegisters();
@@ -122,65 +109,61 @@ static void test_arithmetic_operations(void)
     TEST(result == 0, "MUL: 16 * 16 = 0 (256 truncated to 8-bit)");
 }
 
-/* =========================================================
- *  SECTION 2: LOGICAL OPERATIONS (ANDI, EOR)
- * ========================================================= */
+
 static void test_logical_operations(void)
 {
     printf("\n====================================\n");
     printf("SECTION 2: LOGICAL OPERATIONS\n");
     printf("====================================\n");
 
-    /* -------- ANDI (Opcode 5) -------- */
+    
     printf("\n--- ANDI (Opcode 5): Bitwise AND ---\n");
 
     initRegisters();
-    int8_t result = execute(5, (int8_t)0xFF, (int8_t)0x0F);
-    TEST(result == (int8_t)0x0F, "ANDI: 0xFF & 0x0F = 0x0F");
+    int8_t result = execute(5, (int8_t)0b11111111, (int8_t)0b00001111);
+    TEST(result == (int8_t)0b00001111, "ANDI: 0b11111111 & 0b00001111 = 0b00001111");
 
     initRegisters();
-    result = execute(5, (int8_t)0xF0, (int8_t)0x0F);
-    TEST(result == 0, "ANDI: 0xF0 & 0x0F = 0x00");
+    result = execute(5, (int8_t)0b11110000, (int8_t)0b00001111);
+    TEST(result == 0, "ANDI: 0b11110000 & 0b00001111 = 0b00000000");
 
     initRegisters();
-    result = execute(5, (int8_t)0xAA, (int8_t)0x55);
-    TEST(result == 0, "ANDI: 0xAA & 0x55 = 0x00");
+    result = execute(5, (int8_t)0b10101010, (int8_t)0b01010101);
+    TEST(result == 0, "ANDI: 0b10101010 & 0b01010101 = 0b00000000");
 
     initRegisters();
-    result = execute(5, (int8_t)0xFF, (int8_t)0xFF);
-    TEST(result == (int8_t)0xFF, "ANDI: 0xFF & 0xFF = 0xFF");
+    result = execute(5, (int8_t)0b11111111, (int8_t)0b11111111);
+    TEST(result == (int8_t)0b11111111, "ANDI: 0b11111111 & 0b11111111 = 0b11111111");
 
     initRegisters();
-    result = execute(5, (int8_t)0xA5, (int8_t)0x5A);
-    TEST(result == 0, "ANDI: 0xA5 & 0x5A = 0x00 (Z flag)");
+    result = execute(5, (int8_t)0b10100101, (int8_t)0b01011010);
+    TEST(result == 0, "ANDI: 0b10100101 & 0b01011010 = 0b00000000 (Z flag)");
 
-    /* -------- EOR (Opcode 6) -------- */
+   
     printf("\n--- EOR (Opcode 6): Bitwise XOR ---\n");
 
     initRegisters();
-    result = execute(6, (int8_t)0xFF, (int8_t)0x00);
-    TEST(result == (int8_t)0xFF, "EOR: 0xFF ^ 0x00 = 0xFF");
+    result = execute(6, (int8_t)0b11111111, (int8_t)0b00000000);
+    TEST(result == (int8_t)0b11111111, "EOR: 0b11111111 ^ 0b00000000 = 0b11111111");
 
     initRegisters();
-    result = execute(6, (int8_t)0xFF, (int8_t)0xFF);
-    TEST(result == 0, "EOR: 0xFF ^ 0xFF = 0x00 (Z flag)");
+    result = execute(6, (int8_t)0b11111111, (int8_t)0b11111111);
+    TEST(result == 0, "EOR: 0b11111111 ^ 0b11111111 = 0b00000000 (Z flag)");
 
     initRegisters();
-    result = execute(6, (int8_t)0xA5, (int8_t)0x5A);
-    TEST(result == (int8_t)0xFF, "EOR: 0xA5 ^ 0x5A = 0xFF");
+    result = execute(6, (int8_t)0b10100101, (int8_t)0b01011010);
+    TEST(result == (int8_t)0b11111111, "EOR: 0b10100101 ^ 0b01011010 = 0b11111111");
 
     initRegisters();
-    result = execute(6, (int8_t)0x0F, (int8_t)0xF0);
-    TEST(result == (int8_t)0xFF, "EOR: 0x0F ^ 0xF0 = 0xFF");
+    result = execute(6, (int8_t)0b00001111, (int8_t)0b11110000);
+    TEST(result == (int8_t)0b11111111, "EOR: 0b00001111 ^ 0b11110000 = 0b11111111");
 
     initRegisters();
     result = execute(6, 42, 42);
     TEST(result == 0, "EOR: Same value XOR = 0 (self-annihilation)");
 }
 
-/* =========================================================
- *  SECTION 3: SHIFT OPERATIONS (SLC, SRC - Circular)
- * ========================================================= */
+
 static void test_shift_operations(void)
 {
     printf("\n====================================\n");
@@ -188,64 +171,62 @@ static void test_shift_operations(void)
     printf("  (Circular: SLC = Rotate Left, SRC = Rotate Right)\n");
     printf("====================================\n");
 
-    /* -------- SLC (Opcode 8): Shift Left Circular -------- */
+  
     printf("\n--- SLC (Opcode 8): Shift Left Circular ---\n");
 
     initRegisters();
-    int8_t result = execute(8, (int8_t)0x55, 1); /* 01010101 */
-    TEST(result == (int8_t)0xAA, "SLC: 0x55 rotated left by 1 = 0xAA");
+    int8_t result = execute(8, (int8_t)0b01010101, 1); 
+    TEST(result == (int8_t)0b10101010, "SLC: 0b01010101 rotated left by 1 = 0b10101010");
 
     initRegisters();
-    result = execute(8, (int8_t)0x80, 1); /* 10000000 */
-    TEST(result == 1, "SLC: 0x80 rotated left by 1 = 0x01");
+    result = execute(8, (int8_t)0b10000000, 1); 
+    TEST(result == 1, "SLC: 0b10000000 rotated left by 1 = 0b00000001");
 
     initRegisters();
-    result = execute(8, (int8_t)0xFF, 4); /* 11111111 */
-    TEST(result == (int8_t)0xFF, "SLC: 0xFF rotated left by 4 = 0xFF");
+    result = execute(8, (int8_t)0b11111111, 4); 
+    TEST(result == (int8_t)0b11111111, "SLC: 0b11111111 rotated left by 4 = 0b11111111");
 
     initRegisters();
-    result = execute(8, (int8_t)0x01, 2); /* 00000001 */
-    TEST(result == 4, "SLC: 0x01 rotated left by 2 = 0x04");
+    result = execute(8, (int8_t)0b00000001, 2); 
+    TEST(result == 4, "SLC: 0b00000001 rotated left by 2 = 0b00000100");
 
     initRegisters();
-    result = execute(8, (int8_t)0x40, 7); /* 01000000 */
-    TEST(result == (int8_t)0x20, "SLC: 0x40 rotated left by 7 = 0x20");
+    result = execute(8, (int8_t)0b01000000, 7); 
+    TEST(result == (int8_t)0b00100000, "SLC: 0b01000000 rotated left by 7 = 0b00100000");
 
     initRegisters();
-    result = execute(8, (int8_t)0x12, 8); /* rotate by 8 -> no change */
-    TEST(result == (int8_t)0x12, "SLC: rotation by 8 leaves value unchanged");
+    result = execute(8, (int8_t)0b00010010, 8); 
+    TEST(result == (int8_t)0b00010010, "SLC: rotation by 8 leaves value unchanged");
 
-    /* -------- SRC (Opcode 9): Shift Right Circular -------- */
+   
     printf("\n--- SRC (Opcode 9): Shift Right Circular ---\n");
 
     initRegisters();
-    result = execute(9, (int8_t)0xAA, 1); /* 10101010 */
-    TEST(result == (int8_t)0x55, "SRC: 0xAA rotated right by 1 = 0x55");
+    result = execute(9, (int8_t)0b10101010, 1);
+    TEST(result == (int8_t)0b01010101, "SRC: 0b10101010 rotated right by 1 = 0b01010101");
 
     initRegisters();
-    result = execute(9, (int8_t)0x01, 1); /* 00000001 */
-    TEST(result == (int8_t)0x80, "SRC: 0x01 rotated right by 1 = 0x80");
+    result = execute(9, (int8_t)0b00000001, 1); 
+    TEST(result == (int8_t)0b10000000, "SRC: 0b00000001 rotated right by 1 = 0b10000000");
 
     initRegisters();
-    result = execute(9, (int8_t)0xFF, 3); /* 11111111 */
-    TEST(result == (int8_t)0xFF, "SRC: 0xFF rotated right by 3 = 0xFF");
+    result = execute(9, (int8_t)0b11111111, 3); 
+    TEST(result == (int8_t)0b11111111, "SRC: 0b11111111 rotated right by 3 = 0b11111111");
 
     initRegisters();
-    result = execute(9, (int8_t)0x02, 2); /* 00000010 */
-    TEST(result == 128, "SRC: 0x02 rotated right by 2 = 0x80");
+    result = execute(9, (int8_t)0b00000010, 2); 
+    TEST(result == 128, "SRC: 0b00000010 rotated right by 2 = 0b10000000");
 
     initRegisters();
-    result = execute(9, (int8_t)0x80, 7); /* 10000000 */
-    TEST(result == 1, "SRC: 0x80 rotated right by 7 = 0x01");
+    result = execute(9, (int8_t)0b10000000, 7); 
+    TEST(result == 1, "SRC: 0b10000000 rotated right by 7 = 0b00000001");
 
     initRegisters();
-    result = execute(9, (int8_t)0x34, 16); /* rotate by 16 -> no change */
-    TEST(result == (int8_t)0x34, "SRC: rotation by 16 leaves value unchanged");
+    result = execute(9, (int8_t)0b00110100, 16); 
+    TEST(result == (int8_t)0b00110100, "SRC: rotation by 16 leaves value unchanged");
 }
 
-/* =========================================================
- *  SECTION 4: FLAG UPDATES VERIFICATION
- * ========================================================= */
+
 static void test_flag_updates(void)
 {
     printf("\n====================================\n");
@@ -309,19 +290,17 @@ static void test_flag_updates(void)
     printf("  S = N XOR V\n");
 
     initRegisters();
-    execute(0, 127, 1); /* N=1, V=1, S should be 0 */
+    execute(0, 127, 1); 
     int sign = (SREG >> 1) & 1;
     TEST(sign == 0, "ADD: Sign flag (127+1): N=1, V=1, S=0");
 
     initRegisters();
-    execute(0, 5, 10); /* N=0, V=0, S should be 0 */
+    execute(0, 5, 10); 
     sign = (SREG >> 1) & 1;
     TEST(sign == 0, "ADD: Sign flag (5+10): N=0, V=0, S=0");
 }
 
-/* =========================================================
- *  SECTION 5: BRANCH ADDRESS CALCULATION
- * ========================================================= */
+
 static void test_branch_calculation(void)
 {
     printf("\n====================================\n");
@@ -356,16 +335,13 @@ static void test_branch_calculation(void)
     pc_new = calculateBranch(1023, 1);
     TEST(pc_new == 1025, "Branch from PC=1023 with IMM=1: 1023+1+1=1025");
 
-    pc_new = calculateBranch(500, 127); /* Max positive immediate */
+    pc_new = calculateBranch(500, 127); 
     TEST(pc_new == 628, "Branch with max positive offset: 500+1+127=628");
 
-    pc_new = calculateBranch(500, -128); /* Max negative immediate */
+    pc_new = calculateBranch(500, -128); 
     TEST(pc_new == 373, "Branch with max negative offset: 500+1-128=373");
 }
 
-/* =========================================================
- *  SECTION 6: SPECIAL CASES & BOUNDARY CONDITIONS
- * ========================================================= */
 static void test_boundary_cases(void)
 {
     printf("\n====================================\n");
@@ -401,26 +377,23 @@ static void test_boundary_cases(void)
     TEST(result == 0, "MUL: 0 * 0 = 0");
 
     initRegisters();
-    result = execute(5, 0, 0xFF);
-    TEST(result == 0, "ANDI: 0 & 0xFF = 0");
+    result = execute(5, 0, 0b11111111);
+    TEST(result == 0, "ANDI: 0 & 0b11111111 = 0");
 
     initRegisters();
-    result = execute(6, 0, 0xFF);
-    TEST(result == (int8_t)0xFF, "EOR: 0 ^ 0xFF = 0xFF");
+    result = execute(6, 0, 0b11111111);
+    TEST(result == (int8_t)0b11111111, "EOR: 0 ^ 0b11111111 = 0b11111111");
 
     printf("\n--- Repeated Shifts (Symmetry) ---\n");
 
     initRegisters();
-    int8_t val = (int8_t)0x55;
+    int8_t val = (int8_t)0b01010101;
     int8_t shifted = execute(8, val, 0); /* SLC once */
     initRegisters();
     shifted = execute(9, shifted, 0); /* SRC once */
-    TEST(shifted == val, "SLC then SRC returns to original (0x55)");
+    TEST(shifted == val, "SLC then SRC returns to original (0b01010101)");
 }
 
-/* =========================================================
- *  SECTION 7: NON-ALU OPCODES
- * ========================================================= */
 static void test_non_alu_opcodes(void)
 {
     printf("\n====================================\n");
@@ -450,9 +423,6 @@ static void test_non_alu_opcodes(void)
     TEST(result == 0, "STR (opcode 11): Returns 0");
 }
 
-/* =========================================================
- *  MAIN TEST RUNNER
- * ========================================================= */
 int main(void)
 {
     printf("\n");
@@ -469,7 +439,6 @@ int main(void)
     test_boundary_cases();
     test_non_alu_opcodes();
 
-    /* Print summary */
     printf("\n");
     printf("╔═══════════════════════════════════════════════════╗\n");
     printf("║  TEST SUMMARY                                     ║\n");

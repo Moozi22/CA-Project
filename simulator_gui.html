@@ -580,15 +580,14 @@ function parseOutput(text) {
     dmem: [],
     totalCycles: 0,
     totalInstructions: 0,
-    numInstructions: 0
+    numInstructions: 0,
+    // Per-cycle update histories — used to compute live state at any cycle
+    regUpdateHistory: [],  // [{cycleNum, regNum, value}, ...]
+    memUpdateHistory: [],  // [{cycleNum, addr, value}, ...]
+    sregHistory: []        // [{cycleNum, sreg: {C,V,N,S,Z}}, ...]
   };
 
-  const runtimeState = {
-    registers: createInitialRegisters(),
-    sreg: { C:0, V:0, N:0, S:0, Z:0 },
-    pc: 0,
-    dmem: createInitialDataMemory()
-  };
+  const runtimeSreg = { C:0, V:0, N:0, S:0, Z:0 };
 
   let currentCycleObj = null;
   let inRegisters = false;
@@ -601,10 +600,7 @@ function parseOutput(text) {
 
     const cycleMatch = line.match(/CLOCK CYCLE\s+(\d+)/);
     if (cycleMatch) {
-      if (currentCycleObj) {
-        currentCycleObj.snapshot = cloneRuntimeState(runtimeState);
-        data.cycles.push(currentCycleObj);
-      }
+      if (currentCycleObj) data.cycles.push(currentCycleObj);
       currentCycleObj = { num: parseInt(cycleMatch[1]), events: [] };
       inRegisters = false; inSREG = false; inIMem = false; inDMem = false;
       continue;
@@ -640,8 +636,6 @@ function parseOutput(text) {
     if (inSREG) {
       const flagMatch = line.match(/([CVNSZ])\s+\(.*?\)\s+=\s+(\d)/);
       if (flagMatch) data.sreg[flagMatch[1]] = parseInt(flagMatch[2]);
-      const pcMatch = line.match(/PC \(final\)\s*=\s*(\d+)/);
-      if (pcMatch) data.pc = parseInt(pcMatch[1]);
     }
 
     const pcFinalMatch = line.match(/PC \(final\)\s*=\s*(\d+)/);
@@ -670,35 +664,33 @@ function parseOutput(text) {
     }
 
     if (currentCycleObj && !inRegisters && !inSREG && !inIMem && !inDMem) {
-      const pcMoveMatch = line.match(/PC (?:incremented to|set to)\s+(\d+)/);
-      if (pcMoveMatch) runtimeState.pc = parseInt(pcMoveMatch[1]);
-
       const regUpdateMatch = line.match(/Register Updated:\s+R(\d+)\s*=\s*(-?\d+)/);
       const memUpdateMatch = line.match(/Data Memory Updated:\s+MEM\[(\d+)\]\s*=\s*(-?\d+)/);
       const sregUpdateMatch = line.includes('SREG Updated') ? line.match(/([CVNSZ])=(\d)/g) : null;
-      const ifMatch  = line.match(/\[IF\]\s+(.+)/);
-      const idMatch  = line.match(/\[ID\]\s+(.+)/);
-      const exMatch  = line.match(/\[EX\]\s+(.+)/);
-      const fwdMatch = line.match(/FORWARD:\s+(.+)/);
+      const ifMatch   = line.match(/\[IF\]\s+(.+)/);
+      const idMatch   = line.match(/\[ID\]\s+(.+)/);
+      const exMatch   = line.match(/\[EX\]\s+(.+)/);
+      const fwdMatch  = line.match(/FORWARD:\s+(.+)/);
       const flushMatch = line.match(/FLUSH:\s+(.+)/);
 
       if (regUpdateMatch) {
         const regNum = parseInt(regUpdateMatch[1]);
-        const value = parseInt(regUpdateMatch[2]);
-        runtimeState.registers[regNum] = makeRegisterEntry(regNum, value);
+        const value  = parseInt(regUpdateMatch[2]);
+        data.regUpdateHistory.push({ cycleNum: currentCycleObj.num, regNum, value });
         currentCycleObj.events.push({ type:'reg', text: line });
       }
       else if (memUpdateMatch) {
-        const addr = parseInt(memUpdateMatch[1]);
+        const addr  = parseInt(memUpdateMatch[1]);
         const value = parseInt(memUpdateMatch[2]);
-        runtimeState.dmem[addr] = makeDataMemoryEntry(addr, value);
+        data.memUpdateHistory.push({ cycleNum: currentCycleObj.num, addr, value });
         currentCycleObj.events.push({ type:'mem', text: line });
       }
       else if (sregUpdateMatch) {
         for (const entry of sregUpdateMatch) {
-          const flagMatch = entry.match(/([CVNSZ])=(\d)/);
-          if (flagMatch) runtimeState.sreg[flagMatch[1]] = parseInt(flagMatch[2]);
+          const fm = entry.match(/([CVNSZ])=(\d)/);
+          if (fm) runtimeSreg[fm[1]] = parseInt(fm[2]);
         }
+        data.sregHistory.push({ cycleNum: currentCycleObj.num, sreg: { ...runtimeSreg } });
         currentCycleObj.events.push({ type:'ex', text: line });
       }
       else if (ifMatch)    currentCycleObj.events.push({ type:'if',    text: ifMatch[1] });
@@ -706,16 +698,50 @@ function parseOutput(text) {
       else if (exMatch)    currentCycleObj.events.push({ type:'ex',    text: exMatch[1] });
       else if (fwdMatch)   currentCycleObj.events.push({ type:'fwd',   text: fwdMatch[1] });
       else if (flushMatch) currentCycleObj.events.push({ type:'flush', text: flushMatch[1] });
-      else if (line.includes('Cancelled'))         currentCycleObj.events.push({ type:'flush', text: line });
+      else if (line.includes('Cancelled')) currentCycleObj.events.push({ type:'flush', text: line });
     }
   }
 
-  if (currentCycleObj) {
-    currentCycleObj.snapshot = cloneRuntimeState(runtimeState);
-    data.cycles.push(currentCycleObj);
-  }
+  if (currentCycleObj) data.cycles.push(currentCycleObj);
   return data;
 }
+
+// ── State-reconstruction helpers ──────────────────────────────────────────────
+
+function getRegistersAtCycle(cycleNum, regUpdateHistory) {
+  const regs = [];
+  for (let i = 0; i < 64; i++) regs.push({ name:'R'+i, num:i, dec:0, hex:'0x00', bin:'00000000' });
+  for (const u of regUpdateHistory) {
+    if (u.cycleNum <= cycleNum) regs[u.regNum] = makeRegisterEntry(u.regNum, u.value);
+  }
+  return regs;
+}
+
+function getChangedRegNums(cycleNum, regUpdateHistory) {
+  return regUpdateHistory.filter(u => u.cycleNum === cycleNum).map(u => u.regNum);
+}
+
+function getMemAtCycle(cycleNum, memUpdateHistory) {
+  const mem = {};
+  for (const u of memUpdateHistory) {
+    if (u.cycleNum <= cycleNum) mem[u.addr] = u.value;
+  }
+  return mem;
+}
+
+function getChangedMemAddrs(cycleNum, memUpdateHistory) {
+  return memUpdateHistory.filter(u => u.cycleNum === cycleNum).map(u => u.addr);
+}
+
+function getSREGAtCycle(cycleNum, sregHistory) {
+  let sreg = { C:0, V:0, N:0, S:0, Z:0 };
+  for (const u of sregHistory) {
+    if (u.cycleNum <= cycleNum) sreg = { ...u.sreg };
+  }
+  return sreg;
+}
+
+// ── Dashboard & navigation ─────────────────────────────────────────────────────
 
 function renderDashboard(data) {
   cycles = data.cycles;
@@ -728,10 +754,8 @@ function renderDashboard(data) {
     <div class="stat-card"><div class="label">Final PC</div><div class="value red">${data.pc}</div></div>
   `;
 
-  renderRegisters(data.registers);
-  renderSREG(data.sreg);
+  // Instruction memory never changes — render once
   renderIMem(data.imem);
-  renderDMem(data.dmem);
 
   jumpTo(0);
 }
@@ -739,9 +763,25 @@ function renderDashboard(data) {
 function jumpTo(idx) {
   if (!cycles.length) return;
   currentCycle = Math.max(0, Math.min(idx, cycles.length - 1));
-  renderCycleDetail(cycles[currentCycle]);
-  updatePipelineViz(cycles[currentCycle]);
-  renderRuntimeState(cycles[currentCycle].snapshot || null, parsedData);
+  const cycle = cycles[currentCycle];
+  const cycleNum = cycle.num;
+
+  renderCycleDetail(cycle);
+  updatePipelineViz(cycle);
+
+  // Registers — compute from update history up to this cycle
+  const regs = getRegistersAtCycle(cycleNum, parsedData.regUpdateHistory);
+  const changedRegs = getChangedRegNums(cycleNum, parsedData.regUpdateHistory);
+  renderRegisters(regs, changedRegs);
+
+  // SREG — replay history
+  renderSREG(getSREGAtCycle(cycleNum, parsedData.sregHistory));
+
+  // Data memory — compute from update history up to this cycle
+  const memState = getMemAtCycle(cycleNum, parsedData.memUpdateHistory);
+  const changedMem = getChangedMemAddrs(cycleNum, parsedData.memUpdateHistory);
+  renderDMem(memState, changedMem);
+
   updateControls();
 }
 
@@ -756,6 +796,8 @@ function updateControls() {
   document.getElementById('progress-fill').style.width = pct + '%';
 }
 
+// ── Rendering helpers ─────────────────────────────────────────────────────────
+
 function getBadgeClass(type) {
   const map = { if:'badge-if', id:'badge-id', ex:'badge-ex',
                 reg:'badge-reg', mem:'badge-mem', fwd:'badge-fwd', flush:'badge-flush' };
@@ -768,45 +810,20 @@ function getBadgeLabel(type) {
 }
 
 function colorText(text, type) {
-  if (type === 'reg') return '<span class="reg-update">' + escHtml(text) + '</span>';
-  if (type === 'mem') return '<span class="mem-update">' + escHtml(text) + '</span>';
-  if (type === 'flush') return '<span class="branch">' + escHtml(text) + '</span>';
-  if (type === 'fwd') return '<span class="forward">' + escHtml(text) + '</span>';
+  if (type === 'reg')   return '<span class="reg-update">'  + escHtml(text) + '</span>';
+  if (type === 'mem')   return '<span class="mem-update">'  + escHtml(text) + '</span>';
+  if (type === 'flush') return '<span class="branch">'      + escHtml(text) + '</span>';
+  if (type === 'fwd')   return '<span class="forward">'     + escHtml(text) + '</span>';
   let t = escHtml(text);
-  t = t.replace(/(TAKEN|FLUSH|CANCELLED)/g, '<span class="branch">$1</span>');
-  t = t.replace(/(NOT TAKEN)/g, '<span class="highlight">$1</span>');
-  t = t.replace(/(R\d+\s*=\s*[-\d]+)/g, '<span class="reg-update">$1</span>');
-  t = t.replace(/(MEM\[\d+\]\s*=\s*[-\d]+)/g, '<span class="mem-update">$1</span>');
+  t = t.replace(/(TAKEN|FLUSH|CANCELLED)/g,  '<span class="branch">$1</span>');
+  t = t.replace(/(NOT TAKEN)/g,              '<span class="highlight">$1</span>');
+  t = t.replace(/(R\d+\s*=\s*[-\d]+)/g,     '<span class="reg-update">$1</span>');
+  t = t.replace(/(MEM\[\d+\]\s*=\s*[-\d]+)/g,'<span class="mem-update">$1</span>');
   return t;
 }
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function createInitialRegisters() {
-  const registers = [];
-  for (let i = 0; i < 64; i++) {
-    registers.push(makeRegisterEntry(i, 0));
-  }
-  return registers;
-}
-
-function createInitialDataMemory() {
-  const dmem = [];
-  for (let i = 0; i < 2048; i++) {
-    dmem.push(makeDataMemoryEntry(i, 0));
-  }
-  return dmem;
-}
-
-function cloneRuntimeState(state) {
-  return {
-    registers: state.registers.map(entry => ({ ...entry })),
-    sreg: { ...state.sreg },
-    pc: state.pc,
-    dmem: state.dmem.map(entry => ({ ...entry }))
-  };
 }
 
 function makeRegisterEntry(num, value) {
@@ -819,28 +836,12 @@ function makeRegisterEntry(num, value) {
   };
 }
 
-function makeDataMemoryEntry(addr, value) {
-  return {
-    addr,
-    dec: value,
-    bin: formatBin8(value)
-  };
-}
-
 function formatHex8(value) {
   return '0x' + (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
 }
 
 function formatBin8(value) {
   return (value & 0xFF).toString(2).padStart(8, '0');
-}
-
-function renderRuntimeState(snapshot, data) {
-  if (!snapshot) return;
-  renderRegisters(snapshot.registers);
-  renderSREG(snapshot.sreg);
-  renderIMem(data.imem);
-  renderDMem(snapshot.dmem);
 }
 
 function renderCycleDetail(cycle) {
@@ -874,9 +875,9 @@ function updatePipelineViz(cycle) {
       const m = ev.text.match(/Executing:\s+(\w+)/);
       exText = m ? m[1] : 'executing';
     }
-    if (ev.type === 'if' && ev.text.toLowerCase().includes('no instruction')) ifText = 'bubble';
-    if (ev.type === 'id' && ev.text.toLowerCase().includes('bubble')) idText = 'bubble';
-    if (ev.type === 'ex' && ev.text.toLowerCase().includes('bubble')) exText = 'bubble';
+    if (ev.type === 'if'    && ev.text.toLowerCase().includes('no instruction')) ifText = 'bubble';
+    if (ev.type === 'id'    && ev.text.toLowerCase().includes('bubble'))         idText = 'bubble';
+    if (ev.type === 'ex'    && ev.text.toLowerCase().includes('bubble'))         exText = 'bubble';
     if (ev.type === 'flush') { ifText = 'flushed'; idText = 'flushed'; }
   }
   document.getElementById('psi-if').textContent = ifText;
@@ -884,16 +885,26 @@ function updatePipelineViz(cycle) {
   document.getElementById('psi-ex').textContent = exText;
 }
 
-function renderRegisters(regs) {
+function renderRegisters(regs, changedNums = []) {
   const tbody = document.getElementById('reg-tbody');
-  if (!regs.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state">no data</td></tr>'; return; }
-  tbody.innerHTML = regs.map(r => `
-    <tr>
-      <td class="reg-name">${r.name}</td>
-      <td class="${r.dec !== 0 ? 'nonzero' : ''}">${r.dec}</td>
-      <td class="${r.dec !== 0 ? 'nonzero' : ''}">${r.hex}</td>
+  if (!regs.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">no data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = regs.map(r => {
+    const changed = changedNums.includes(r.num);
+    const rowStyle = changed
+      ? ' style="background:#0d2a12;border-left:2px solid #4acea0"'
+      : '';
+    const label = r.name + (changed ? ' <span style="color:#4acea0;font-size:8px">▲</span>' : '');
+    const valClass = (r.dec !== 0 || changed) ? 'nonzero' : '';
+    return `<tr${rowStyle}>
+      <td class="reg-name">${label}</td>
+      <td class="${valClass}">${r.dec}</td>
+      <td class="${valClass}">${r.hex}</td>
       <td class="binary-cell">${r.bin}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function renderSREG(sreg) {
@@ -915,15 +926,41 @@ function renderIMem(imem) {
     </tr>`).join('');
 }
 
-function renderDMem(dmem) {
+// memState: {addr: value} for all written locations
+// changedAddrs: addresses written THIS cycle
+function renderDMem(memState, changedAddrs = []) {
   const tbody = document.getElementById('dmem-tbody');
-  if (!dmem.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">(all slots are 0)</td></tr>'; return; }
-  tbody.innerHTML = dmem.map(m => `
-    <tr>
-      <td class="reg-name">DM[${m.addr}]</td>
-      <td class="nonzero">${m.dec}</td>
+
+  // Collect all addresses worth showing: non-zero + changed this cycle
+  const visible = new Set(changedAddrs);
+  for (const [addrStr, val] of Object.entries(memState)) {
+    if (val !== 0) visible.add(parseInt(addrStr));
+  }
+
+  const entries = Array.from(visible)
+    .sort((a, b) => a - b)
+    .map(addr => {
+      const val = memState[addr] !== undefined ? memState[addr] : 0;
+      return { addr, dec: val, bin: formatBin8(val), changed: changedAddrs.includes(addr) };
+    });
+
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">(all data memory is 0)</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = entries.map(m => {
+    const rowStyle = m.changed
+      ? ' style="background:#0d2a12;border-left:2px solid #4acea0"'
+      : '';
+    const label = 'DM[' + m.addr + ']' + (m.changed ? ' <span style="color:#4acea0;font-size:8px">▲</span>' : '');
+    const valClass = (m.dec !== 0 || m.changed) ? 'nonzero' : '';
+    return `<tr${rowStyle}>
+      <td class="reg-name">${label}</td>
+      <td class="${valClass}">${m.dec}</td>
       <td class="binary-cell">${m.bin}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 </script>
 </body>
