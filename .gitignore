@@ -1,9 +1,0 @@
-# Ignore compiled executables
-*.exe
-
-# Ignore intermediate object files
-*.o
-
-# Ignore OS-specific files
-Thumbs.db
-.DS_Store
